@@ -1,4 +1,6 @@
 module Main where
 
+import Example
+
 main :: IO ()
-main = undefined
+main = print $ rev [1..5]
