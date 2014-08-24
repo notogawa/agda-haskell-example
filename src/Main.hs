@@ -3,4 +3,6 @@ module Main where
 import Example
 
 main :: IO ()
-main = print $ rev [1..5]
+main = do
+  print $ rev [1..5]
+  print $ safeHead [1..5]
