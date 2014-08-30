@@ -4,3 +4,5 @@
 cabal.sandbox.config
 *.agdai
 /src/MAlonzo
+/TAGS
+/src/Main
