@@ -29,7 +29,7 @@
 * 以下のHaskellと同じ挙動
 
 ~~~~
-main = interact $ unlines . reverse . lines
+main = interact $ unlines . map reverse . lines
 ~~~~
 
 ~~~~
@@ -79,7 +79,7 @@ rev (x ∷ xs) = rev xs ++ [ x ]
 * Agdaで全て書く
     * 実行バイナリを得る
     * main関数他もAgda内で
-* Agdaの関数をHaskellから使う (2.4 以降)
+* Agdaの関数をHaskellから使う (2.3.4 以降)
     * Haskellのモジュールを得る
     * 証明された一部の関数だけを得る
     * main関数他はHaskellで
@@ -337,14 +337,197 @@ main = run (♯ getContents >>= ♯_ ∘ eachline ( fromList ∘ rev ∘ toList)
 
 # Agdaの関数をHaskellから使う編
 
-* COMPILED_EXPORT
-    * cabalize例
-* 再帰バグ
-    * 2.4 - 2.4.0.2
-    * 回避策
-* 証明項の消失
-* ghc-modがオモイ
-* サンプルプロジェクト
+# Haskellのコード生成に使うFFIプラグマ
+
+Agdaから生成されるHaskellモジュールに対して
+
+* `IMPORT`
+    * 指定Haskellモジュールをimportする
+* `COMPILED`
+    * ある関数を指定のHaskellコードに対応させる
+* `COMPILED_TYPE`
+    * ある型を指定のHaskell型に対応させる
+* `COMPILED_DATA`
+    * ある代数的データ型を指定のHaskellの代数的データ型に対応させる
+    * そのコンストラクタも指定のコンストラクタに対応させる
+
+# そして今回のメイン
+
+* `COMPILED_EXPORT`
+    * ある関数を指定の名前にする
+    * 何も指定しなければ機械生成な名前
+
+~~~~
+-- reverse
+rev : ∀ {a} {A : Set a} → List A → List A
+rev [] = []
+rev (x ∷ xs) = rev xs ++ [ x ]
+
+rev' = rev -- 理由は後述
+
+{-# COMPILED_EXPORT rev' rev' #-}
+~~~~
+
+# Haskellモジュールの生成
+
+compileはするがmainは無いので
+
+~~~~
+agda -c --no-main -i/usr/share/agda-stdlib -isrc src/Example.agda
+~~~~
+
+* AgdaのモジュールXから
+    * 例: Example.agda
+* HaskellのモジュールMAlonzo.Code.Xが
+    * 例: MAlonzo/Code/Example.hs
+
+# 生成される関数
+
+~~~~
+*MAlonzo.Code.Example> :t rev'
+rev' :: () -> () -> Data.FFI.AgdaList xa xA -> Data.FFI.AgdaList xa xA
+~~~~
+
+* `Data.FFI.AgdaList xa xA` はリスト `[xA]`
+* implicit parameter も explicit parameter に
+* 型のレベルが`()`に
+* 型も`()`に
+
+# 生成された関数を使い易くするためのラッパ
+
+`()`や`AgdaList`が自明かつ邪魔なので
+
+~~~~
+module Example (rev) where
+
+import MAlonzo.Code.Example
+
+rev :: [a] -> [a]
+rev = rev' () ()
+~~~~
+
+# Agdaを伴うHaskellプロジェクトのCabalize
+
+* ディレクトリ構造
+
+~~~~
+./Setup.hs
+./agda-haskell-example.cabal
+./src/Example.agda
+./src/Example.hs
+./src/Main.hs
+~~~~
+
+* Setup.hsカスタマイズ
+
+~~~~
+main = defaultMainWithHooks hook where
+    customPreBuild args flags = do
+      system "agda -c --no-main -i/usr/share/agda-stdlib -isrc src/Example.agda"
+      preBuild simpleUserHooks args flags
+    hook = simpleUserHooks { preBuild = customPreBuild }
+~~~~
+
+# 落とし穴集
+
+* COMPILED_EXPORTバグ
+* 証明項の扱い
+* ghc-mod/emacsが激重
+
+# COMPILED_EXPORTバグ
+
+revを直接COMPILED_EXPORTしなかった理由
+
+~~~~
+rev' = rev
+{-# COMPILED_EXPORT rev' rev' #-}
+~~~~
+
+* `rev`を直接exportするとコンパイルできないコードが生成される
+    * https://code.google.com/p/agda/issues/detail?id=1252
+    * 2.4.0.2まで存在
+    * 2.4.2以降fixed
+* 2.4.2以降を使うか`rev'`のようにワンクッションで回避
+
+# 証明項の扱い
+
+証明項を引数に持つ関数のexport
+
+~~~~
+head : ∀ {a} {A : Set a} (xs : List A) → {xs≢[] : xs ≢ []} → A
+head [] {xs≠[]} = ⊥-elim (xs≠[] refl)
+head (x ∷ xs) = x
+{-# COMPILED_EXPORT head safeHead' #-}
+~~~~
+
+`_≡_`がどうやってexportすればいいかわからない
+
+~~~~
+The type _≡_ cannot be translated to a Haskell type.
+when checking the pragma COMPILED_EXPORT head' safeHead
+~~~~
+
+# COMPILED_EXPORTできない関数
+
+* 型の中にexportできないシンボルが含まれているもの
+    * 自然数型`ℕ`
+    * Propositional Equality `_≡_` による型
+    * あまり単純じゃない型は大体ダメ
+
+# どうする？
+
+たとえばラップしたものをexport
+
+~~~~
+head' : ∀ {a} {A : Set a} (xs : List A) → Maybe A
+head' = go where
+  go : ∀ {a} {A : Set a} (xs : List A) → Maybe A
+  go [] = nothing
+  go (x ∷ xs) = just (head (x ∷ xs) {λ ()})
+{-# COMPILED_EXPORT head' safeHead' #-}
+~~~~
+
+* `head`を直接使わない
+* `head'`でラップ
+    * 証明項が作れないものは`nothing`
+    * 証明項が作れるものは`head`の結果を`just`
+
+# ghc-mod/emacsが激重
+
+生成モジュールをimportしたモジュールを開くとemacsが激重
+
+* MAlonzoによる生成モジュールはwarningだらけ
+    * ghc-modが1分程帰らない
+    * emacsがずっとCPU使用率100%
+        * 何してるの？
+
+いまのところ**対策なし**
+
+# Agdaの関数をHaskellから使う編…結果
+
+* できなくはない
+* が，少々辛い
+    * 無意味なラップが多い
+        * exportされた関数のHaskell側でのラップ
+        * 問題無くexportするためのAgda側でのラップ
+        * ラップ方法が正しいかという問題
+    * emacsが重くて編集できない
+* 初心者にオススメするのは少し難しいかもしれない
+
+# まとめ
+
+* Agdaで全て書く
+    * つらい
+* Agdaの関数をHaskellから使う
+    * つらい
+
+**Real World Agda は思いの外つらい！**
+
+
+# 以上
+
+本当はつらい Real World Agda でした．
+
 
 # (Co)Inductive Data Type と構造再帰の停止性
 
