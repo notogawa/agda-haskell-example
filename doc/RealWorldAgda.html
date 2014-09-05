@@ -543,7 +543,7 @@ rev = rev' () ()</code></pre>
 </div>
 <div id="compiled_exportバグ" class="slide section level1">
 <h1>COMPILED_EXPORTバグ</h1>
-<p>revを直接COMPILED_EXPORTしなかった理由</p>
+<p><code>rev</code>を直接COMPILED_EXPORTしなかった理由</p>
 <pre><code>rev' = rev
 {-# COMPILED_EXPORT rev' rev' #-}</code></pre>
 <ul>
@@ -576,7 +576,7 @@ when checking the pragma COMPILED_EXPORT head' safeHead</code></pre>
 <ul>
 <li>自然数型<code>ℕ</code></li>
 </ul></li>
-<li>GADT的なものなど
+<li>GADTなもの
 <ul>
 <li>Propositional Equality <code>_≡_</code> による型</li>
 </ul></li>

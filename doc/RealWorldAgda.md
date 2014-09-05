@@ -460,7 +460,7 @@ main = defaultMainWithHooks hook where
 
 # COMPILED_EXPORTバグ
 
-revを直接COMPILED_EXPORTしなかった理由
+`rev`を直接COMPILED_EXPORTしなかった理由
 
 ~~~~
 rev' = rev
@@ -496,7 +496,7 @@ when checking the pragma COMPILED_EXPORT head' safeHead
 * 型の中にexportできないシンボルが含まれているもの
     * Haskellに上手いマップの無いもの
         * 自然数型`ℕ`
-    * GADT的なものなど
+    * GADTなもの
         * Propositional Equality `_≡_` による型
     * あまり単純じゃない型は大体ダメ
 
