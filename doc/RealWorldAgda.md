@@ -83,7 +83,7 @@ revrev-is-id (x ∷ xs)
 * Agdaで全て書く
     * 実行バイナリを得る
     * main関数他もAgda内で
-* Agdaの関数をHaskellから使う (2.3.4 以降)
+* Agdaの関数をHaskellから使う (2.4.0 以降)
     * Haskellのモジュールを得る
     * 証明された一部の関数だけを得る
     * main関数他はHaskellで
