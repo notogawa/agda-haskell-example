@@ -55,21 +55,23 @@ rev [] = []
 rev (x ∷ xs) = rev xs ++ [ x ]
 ~~~~
 
+末尾再帰がどうこうとか細かいことはおいといて．
+
 # reverse . reverse = id の証明
 
 ~~~~
-  lemma : ∀ {a} {A : Set a} (x : A) (xs : List A) → rev (xs ∷ʳ x) ≡ x ∷ rev xs
-  lemma x [] = refl
-  lemma x (_ ∷ xs)
-    rewrite lemma x xs
-          = refl
+lemma : ∀ {a} {A : Set a} (x : A) (xs : List A) → rev (xs ∷ʳ x) ≡ x ∷ rev xs
+lemma x [] = refl
+lemma x (_ ∷ xs)
+  rewrite lemma x xs
+        = refl
 
-  revrev-is-id : ∀ {a} {A : Set a} (xs : List A) → rev (rev xs) ≡ xs
-  revrev-is-id [] = refl
-  revrev-is-id (x ∷ xs)
-    rewrite lemma x (rev xs)
-          | revrev-is-id xs
-          = refl
+revrev-is-id : ∀ {a} {A : Set a} (xs : List A) → rev (rev xs) ≡ xs
+revrev-is-id [] = refl
+revrev-is-id (x ∷ xs)
+  rewrite lemma x (rev xs)
+        | revrev-is-id xs
+        = refl
 ~~~~
 
 # Agda(MAlonzo)での関数の動かし方
@@ -160,6 +162,10 @@ Costring : Set
 Costring = Colist Char
 ~~~~
 
+* (対して)Stringは何か特殊な型
+    * 文字のリストと相互変換可能
+    * HaskellではStringにマップされる
+
 # 余リスト
 
 * 終わらないかもしれないリスト構造
@@ -172,7 +178,7 @@ data Colist {a} (A : Set a) : Set a where
   _∷_ : (x : A) (xs : ∞ (Colist A)) → Colist A
 ~~~~
 
-* (対してListは)必ず終わりがあるリスト構造
+* (対して)Listは必ず終わりがあるリスト構造
     * 一段階ずつ`_∷_`して作られていることがわかっている
     * Inductive Data Type
 
@@ -182,7 +188,7 @@ data List {a} (A : Set a) : Set a where
   _∷_ : (x : A) (xs : List A) → List A
 ~~~~
 
-# 無限の記号？ - Coinduction
+# 無限の記号？ - Agda の Coinduction
 
 ~~~~
 ∞  : ∀ {a} (A : Set a) → Set a
@@ -195,18 +201,21 @@ data List {a} (A : Set a) : Set a where
     * 評価が遅延するという意味を持つ型を作る
 * `♯`は delay function
     * 謎のヴェールで"包む"
-    * 評価を遅延させるデータを作る
+    * 評価を遅延させることを示す
 * `♭`は force function
     * 謎のヴェールを"剥す"
-    * 遅延させられたデータの評価を進める
+    * 遅延させられた値の評価を進める
 
 # つまり，どういうことだってばよ？
 
 ~~~~
-_∷_ : (x : A) (xs : ∞ (Colist A)) → Colist A
+data Colist {a} (A : Set a) : Set a where
+  []  : Colist A
+  _∷_ : (x : A) (xs : ∞ (Colist A)) → Colist A
 ~~~~
 
 * Colistの値からパターンマッチで先頭`x`と残り`xs`が取り出せる
+    * かもしれないし，もちろん`[]`かもしれない
 * ただし，`xs`は`♭`してあげないとどうなっているかわからない
     * `xs`から次のパターンマッチはできない
     * `♭ xs`から次のパターンマッチができる
@@ -221,8 +230,12 @@ _∷_ : (x : A) (xs : ∞ (Colist A)) → Colist A
 takeLine : Costring → String × Costring
 ~~~~
 
-* `×`はタプル
-    * 少し違うけど
+~~~~
+takeLine "foo\nbar\n\baz" => "foo" , "bar\nbaz"
+~~~~
+
+* `×`はタプルで，`,`はそのコンストラクタ
+    * 少し違うけど，そうだと思って
 
 # さあ，作ろう
 
@@ -280,13 +293,16 @@ takeLine xs = go "" xs where
 ~~~~
 
 * 改行が来ないうちは，`later`が重なる
+    * Coinductiveな場合，再帰で**構造が大きくならなければならない**
 * 最後はnowになる
-    * Coinductiveなので"なるかもしれない"
+    * Coinductiveなので**なるかもしれない**
 
 # laterを剥す
 
-* `later`を(支障無く)剥せるタイミングは出力時
-* `IO`にだけはinfinity large computationを許す版がある
+* `A ⊥`の値から単純に`now`を探して`A`の値取り出すことはできない
+    * 停止性
+* `later`を(支障無く)剥せるタイミングは`IO`でのみ
+* `IO`にだけはinfinity large computationの構成を許す版がある
     * `IO.Primitive`(許さない版)
     * `IO`(許す版)．`IO.Primitive`のラッパ．`run`を使う
 
@@ -298,7 +314,7 @@ eachline f = go ∘ takeLine where
   go (later x) = ♯ return tt >> ♯ go (♭ x)
 ~~~~
 
-* 無意味な`later`を"何もしない操作"で消費
+* 無意味な`later`を**何もしない操作**で消費
     * return tt のこと
 
 # とりあえずの解答
@@ -326,7 +342,7 @@ main = run (♯ getContents >>= ♯_ ∘ eachline ( fromList ∘ rev ∘ toList)
 # Agdaで全て書く編…結果
 
 * できなくはない
-* が，とても辛い
+* が，とてもつらい
     * Coinductivity
     * Termination Checker
     * Partiality Monad
@@ -342,20 +358,21 @@ main = run (♯ getContents >>= ♯_ ∘ eachline ( fromList ∘ rev ∘ toList)
 Agdaから生成されるHaskellモジュールに対して
 
 * `IMPORT`
-    * 指定Haskellモジュールをimportする
+    * 指定Haskellモジュールを生成モジュール内でimportする
 * `COMPILED`
-    * ある関数を指定のHaskellコードに対応させる
+    * あるAgdaの関数を指定のHaskellコードに対応させる
 * `COMPILED_TYPE`
-    * ある型を指定のHaskell型に対応させる
+    * あるAgdaの型を指定のHaskell型に対応させる
 * `COMPILED_DATA`
-    * ある代数的データ型を指定のHaskellの代数的データ型に対応させる
+    * あるAgdaの代数的データ型を指定のHaskellの代数的データ型に対応させる
     * そのコンストラクタも指定のコンストラクタに対応させる
 
 # そして今回のメイン
 
 * `COMPILED_EXPORT`
-    * ある関数を指定の名前にする
+    * あるAgadの関数を指定の名前のHaskell関数として生成する
     * 何も指定しなければ機械生成な名前
+        * `d123`のような
 
 ~~~~
 -- reverse
@@ -370,7 +387,7 @@ rev' = rev -- 理由は後述
 
 # Haskellモジュールの生成
 
-compileはするがmainは無いので
+コンパイルはするが`main`は無いので
 
 ~~~~
 agda -c --no-main -i/usr/share/agda-stdlib -isrc src/Example.agda
@@ -382,6 +399,10 @@ agda -c --no-main -i/usr/share/agda-stdlib -isrc src/Example.agda
     * 例: MAlonzo/Code/Example.hs
 
 # 生成される関数
+
+~~~~
+rev : ∀ {a} {A : Set a} → List A → List A
+~~~~
 
 ~~~~
 *MAlonzo.Code.Example> :t rev'
@@ -405,6 +426,8 @@ import MAlonzo.Code.Example
 rev :: [a] -> [a]
 rev = rev' () ()
 ~~~~
+
+この`Example`モジュールをimportして`rev`関数を使うようにする
 
 # Agdaを伴うHaskellプロジェクトのCabalize
 
@@ -432,6 +455,7 @@ main = defaultMainWithHooks hook where
 
 * COMPILED_EXPORTバグ
 * 証明項の扱い
+* Inductive/Coinductive Data Type の区別
 * ghc-mod/emacsが激重
 
 # COMPILED_EXPORTバグ
@@ -446,7 +470,7 @@ rev' = rev
 * `rev`を直接exportするとコンパイルできないコードが生成される
     * https://code.google.com/p/agda/issues/detail?id=1252
     * 2.4.0.2まで存在
-    * 2.4.2以降fixed
+    * 2.4.2以降fixed (されてるハズ)
 * 2.4.2以降を使うか`rev'`のようにワンクッションで回避
 
 # 証明項の扱い
@@ -460,7 +484,7 @@ head (x ∷ xs) = x
 {-# COMPILED_EXPORT head safeHead' #-}
 ~~~~
 
-`_≡_`がどうやってexportすればいいかわからない
+`_≡_`を何にexportすればいいかわからない
 
 ~~~~
 The type _≡_ cannot be translated to a Haskell type.
@@ -470,8 +494,10 @@ when checking the pragma COMPILED_EXPORT head' safeHead
 # COMPILED_EXPORTできない関数
 
 * 型の中にexportできないシンボルが含まれているもの
-    * 自然数型`ℕ`
-    * Propositional Equality `_≡_` による型
+    * Haskellに上手いマップの無いもの
+        * 自然数型`ℕ`
+    * GADT的なものなど
+        * Propositional Equality `_≡_` による型
     * あまり単純じゃない型は大体ダメ
 
 # どうする？
@@ -492,46 +518,61 @@ head' = go where
     * 証明項が作れないものは`nothing`
     * 証明項が作れるものは`head`の結果を`just`
 
+# Inductive/Coinductive Data Type の区別
+
+HaskellにはListとColistの区別が無い！
+
+~~~~
+rev . rev = id
+~~~~
+
+~~~~
+rev (rev 有限リスト) = id 有限リスト
+
+~~~~
+
+~~~~
+rev (rev 無限リスト) = id 無限リスト ？
+
+~~~~
+
+アブナイ！
+
 # ghc-mod/emacsが激重
 
 生成モジュールをimportしたモジュールを開くとemacsが激重
 
 * MAlonzoによる生成モジュールはwarningだらけ
     * ghc-modが1分程帰らない
-    * emacsがずっとCPU使用率100%
-        * 何してるの？
+    * その後，emacsがずっとCPU使用率100%
+        * 何してるの？未調査
 
 いまのところ**対策なし**
+
+* 一応，重くなってしまったバッファを閉じれば…
+
 
 # Agdaの関数をHaskellから使う編…結果
 
 * できなくはない
-* が，少々辛い
+* が，少々つらい
     * 無意味なラップが多い
         * exportされた関数のHaskell側でのラップ
         * 問題無くexportするためのAgda側でのラップ
         * ラップ方法が正しいかという問題
-    * emacsが重くて編集できない
+    * HaskellとAgdaの違いが無視される
+    * emacsが重くてHaskellが書けない
 * 初心者にオススメするのは少し難しいかもしれない
 
 # まとめ
 
 * Agdaで全て書く
+    * 理想的
     * つらい
 * Agdaの関数をHaskellから使う
+    * 多少現実的
     * つらい
-
-**Real World Agda は思いの外つらい！**
-
 
 # 以上
 
 本当はつらい Real World Agda でした．
-
-
-# (Co)Inductive Data Type と構造再帰の停止性
-
-* Inductive Data Type に対して
-    * より小さな構造に分解していかなければならない
-* Coinductive Data Type に対して
-    * より大きな構造を構成していかなければならない
