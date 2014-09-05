@@ -60,13 +60,15 @@ rev (x ∷ xs) = rev xs ++ [ x ]
 # reverse . reverse = id の証明
 
 ~~~~
-lemma : ∀ {a} {A : Set a} (x : A) (xs : List A) → rev (xs ∷ʳ x) ≡ x ∷ rev xs
+lemma : ∀ {a} {A : Set a} (x : A) (xs : List A) →
+        rev (xs ∷ʳ x) ≡ x ∷ rev xs
 lemma x [] = refl
 lemma x (_ ∷ xs)
   rewrite lemma x xs
         = refl
 
-revrev-is-id : ∀ {a} {A : Set a} (xs : List A) → rev (rev xs) ≡ xs
+revrev-is-id : ∀ {a} {A : Set a} (xs : List A) →
+               rev (rev xs) ≡ xs
 revrev-is-id [] = refl
 revrev-is-id (x ∷ xs)
   rewrite lemma x (rev xs)
@@ -299,10 +301,9 @@ takeLine xs = go "" xs where
 
 # laterを剥す
 
-* `A ⊥`の値から単純に`now`を探して`A`の値取り出すことはできない
-    * 停止性
-* `later`を(支障無く)剥せるタイミングは`IO`でのみ
-* `IO`にだけはinfinity large computationの構成を許す版がある
+* `A ⊥`の値から単純に`now`を探して`A`の値を取り出すのはダメ
+* `later`を(支障無く)剥せるのは`IO`でのみ
+* `IO`にはinfinity large computationの構成を許す版がある
     * `IO.Primitive`(許さない版)
     * `IO`(許す版)．`IO.Primitive`のラッパ．`run`を使う
 
@@ -310,7 +311,8 @@ takeLine xs = go "" xs where
 eachline : (String → String) → Costring → IO ⊤
 eachline f = go ∘ takeLine where
   go : (String × Costring) ⊥ → IO ⊤
-  go (now (line , xs)) = ♯ putStrLn (f line) >> ♯ go (takeLine xs)
+  go (now (line , xs)) = ♯ putStrLn (f line) >>
+                         ♯ go (takeLine xs)
   go (later x) = ♯ return tt >> ♯ go (♭ x)
 ~~~~
 
@@ -320,7 +322,8 @@ eachline f = go ∘ takeLine where
 # とりあえずの解答
 
 ~~~~
-main = run (♯ getContents >>= ♯_ ∘ eachline ( fromList ∘ rev ∘ toList) )
+main = run (♯ getContents >>=
+            ♯_ ∘ eachline ( fromList ∘ rev ∘ toList) )
 ~~~~
 
 * まだ問題がある
@@ -339,13 +342,15 @@ main = run (♯ getContents >>= ♯_ ∘ eachline ( fromList ∘ rev ∘ toList)
     * `now`と`later`による構造`_⊥`はモナド
     * Agda標準ライブラリにも入っている
 
+* でも，Agdaにはdo記法無いんじゃよ…
+
 # Agdaで全て書く編…結果
 
 * できなくはない
 * が，とてもつらい
     * Coinductivity
     * Termination Checker
-    * Partiality Monad
+    * Partiality Monad (without do notation)
     * Long Compile Time
 * 初心者にオススメするのは少し難しいかもしれない
 * いたるところPartiality Monadによるストリーミング処理
@@ -390,7 +395,8 @@ rev' = rev -- 理由は後述
 コンパイルはするが`main`は無いので
 
 ~~~~
-agda -c --no-main -i/usr/share/agda-stdlib -isrc src/Example.agda
+agda -c --no-main \
+  -i/usr/share/agda-stdlib -isrc src/Example.agda
 ~~~~
 
 * AgdaのモジュールXから
@@ -406,7 +412,8 @@ rev : ∀ {a} {A : Set a} → List A → List A
 
 ~~~~
 *MAlonzo.Code.Example> :t rev'
-rev' :: () -> () -> Data.FFI.AgdaList xa xA -> Data.FFI.AgdaList xa xA
+rev' :: () -> () -> Data.FFI.AgdaList xa xA
+                 -> Data.FFI.AgdaList xa xA
 ~~~~
 
 * `Data.FFI.AgdaList xa xA` はリスト `[xA]`
@@ -488,7 +495,7 @@ head (x ∷ xs) = x
 
 ~~~~
 The type _≡_ cannot be translated to a Haskell type.
-when checking the pragma COMPILED_EXPORT head' safeHead
+when checking the pragma COMPILED_EXPORT head safeHead'
 ~~~~
 
 # COMPILED_EXPORTできない関数
@@ -528,15 +535,18 @@ rev . rev = id
 
 ~~~~
 rev (rev 有限リスト) = id 有限リスト
-
 ~~~~
 
 ~~~~
 rev (rev 無限リスト) = id 無限リスト ？
-
 ~~~~
 
-アブナイ！
+Haskellは型が緩すぎてアブナイ！
+
+~~~~
+take 10 (rev (rev 無限リスト)) → 止まらない
+take 10 (id 無限リスト)        → 止まる
+~~~~
 
 # ghc-mod/emacsが激重
 
@@ -567,10 +577,10 @@ rev (rev 無限リスト) = id 無限リスト ？
 # まとめ
 
 * Agdaで全て書く
-    * 理想的
+    * 理想的だが書きにくい
     * つらい
 * Agdaの関数をHaskellから使う
-    * 多少現実的
+    * 多少現実的だがあぶない
     * つらい
 
 # 以上
